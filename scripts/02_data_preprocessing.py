@@ -5,6 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import mlflow
+import os
 
 # ตั้งค่า MLflow Experiment
 MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
@@ -64,5 +65,17 @@ with mlflow.start_run():
     # Log the model (pipeline)
     mlflow.sklearn.log_model(pipeline, "pulsar-classifier-model")
 
+    # Get the run_id of the current run
+    run_id = mlflow.active_run().info.run_id
     print("\nModel training and logging complete.")
-    print("Run ID:", mlflow.active_run().info.run_id)
+    print(f"Run ID: {run_id}")
+
+    # --- GITHUB ACTIONS INTEGRATION --- #
+    # This block writes the run_id to a special file that GitHub Actions can read.
+    # It only runs when the script is executed within a GitHub Actions environment.
+    print("Checking for GITHUB_OUTPUT environment variable...")
+    if "GITHUB_OUTPUT" in os.environ:
+        print(f"Writing run_id {run_id} to GITHUB_OUTPUT...")
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            print(f"run_id={run_id}", file=f)
+        print("Successfully wrote run_id to GITHUB_OUTPUT.")
