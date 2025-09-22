@@ -4,6 +4,7 @@ import os
 import sys
 import pandas as pd
 import mlflow
+from mlflow.artifacts import download_artifacts  # <-- Import the necessary function
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -14,18 +15,25 @@ def train_and_register():
     Loads processed data from a previous MLflow run, trains a model
     in a new run, logs it, and then registers the new model.
     """
-    # --- 1. Get Preprocessing Run ID from Arguments ---
+    # --- 1. Get Preprocessing Run ID ---
     if len(sys.argv) < 2:
         print("Error: Missing required argument: <preprocessing_run_id>")
         sys.exit(1)
     preprocessing_run_id = sys.argv[1]
     print(f"Using preprocessing data from Run ID: {preprocessing_run_id}")
 
-    # --- 2. Load Data Artifact from the Preprocessing Run ---
+    # --- 2. Download Data Artifact from the Preprocessing Run ---
     try:
-        # Corrected the artifact path to remove the extra '/data'
-        data_path = f"runs:/{preprocessing_run_id}/processed_data/train_balanced.csv"
-        print(f"Loading data from artifact path: {data_path}")
+        # Use MLflow to find and download the artifact, returning its local path
+        artifact_path = "processed_data"
+        local_artifact_dir = download_artifacts(
+            run_id=preprocessing_run_id, 
+            artifact_path=artifact_path
+        )
+        data_path = os.path.join(local_artifact_dir, "train_balanced.csv")
+        print(f"Successfully downloaded artifact to local path: {data_path}")
+
+        # Now read the data using the real local path
         train_df = pd.read_csv(data_path)
         X_train = train_df.drop("target_class", axis=1)
         y_train = train_df["target_class"]
