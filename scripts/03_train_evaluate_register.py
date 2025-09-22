@@ -26,7 +26,7 @@ def train_and_register():
 
     # --- 3. Load Data Artifact from the Preprocessing Run ---
     try:
-        data_path = f"runs:/{preprocessing_run_id}/processed_data/train_balanced.csv"
+        data_path = f"runs:/{preprocessing_run_id}/data/processed_data/train_balanced.csv"
         print(f"Loading data from artifact path: {data_path}")
         train_df = pd.read_csv(data_path)
         X_train = train_df.drop("target_class", axis=1)
