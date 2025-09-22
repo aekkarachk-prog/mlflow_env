@@ -1,0 +1,6 @@
+artifact_location: mlflow-artifacts:/733908052684220801
+creation_time: 1757910139243
+experiment_id: '733908052684220801'
+last_update_time: 1757910139243
+lifecycle_stage: active
+name: pulsar-star-classifier

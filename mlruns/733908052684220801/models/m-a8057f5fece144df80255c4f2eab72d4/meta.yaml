@@ -1,0 +1,10 @@
+artifact_location: mlflow-artifacts:/733908052684220801/models/m-a8057f5fece144df80255c4f2eab72d4/artifacts
+creation_timestamp: 1757910144950
+experiment_id: '733908052684220801'
+last_updated_timestamp: 1757910148689
+model_id: m-a8057f5fece144df80255c4f2eab72d4
+model_type: ''
+name: pulsar-classifier-model
+source_run_id: c3117cc7643549f2bb05010da4149d3a
+status: 2
+status_message: null
