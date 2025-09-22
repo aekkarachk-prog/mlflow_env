@@ -12,7 +12,7 @@ def train_and_register():
     Loads processed data from a previous MLflow run, trains a model
     in a new run, logs it, and then registers the new model.
     """
-    # --- 1. Set up MLflow Tracking ---
+    # --- 1. Set up MLflow Tracking --
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     if not MLFLOW_TRACKING_URI:
         print("Error: MLFLOW_TRACKING_URI environment variable not set.")
