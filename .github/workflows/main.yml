@@ -73,21 +73,21 @@ jobs:
 
 
       - name: Run Data Validation
-        run: python mlops_pipeline/scripts/01_data_validation.py
+        run: python pulsar/scripts/01_data_validation.py
 
 
       - name: Run Data Preprocessing
         id: preprocessing
-        run: python mlops_pipeline/scripts/02_data_preprocessing.py
+        run: python pulsar/scripts/02_data_preprocessing.py
 
 
       - name: Run Model Training, Evaluation, and Registration
-        run: python mlops_pipeline/scripts/03_train_evaluate_register.py ${{ steps.preprocessing.outputs.run_id }} 10.0
+        run: python pulsar/scripts/03_train_evaluate_register.py ${{ steps.preprocessing.outputs.run_id }} 10.0
 
 
       - name: Transition Model to Staging
         if: success()
-        run: python mlops_pipeline/scripts/04_transition_model.py "wine-classifier-prod" "Staging"
+        run: python pulsar/scripts/04_transition_model.py "wine-classifier-prod" "Staging"
 
 
       - name: Upload MLflow artifacts for inspection
