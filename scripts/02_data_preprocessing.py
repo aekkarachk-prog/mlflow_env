@@ -1,85 +1,84 @@
-# scripts/02_train_model.py
-import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-import mlflow
 import os
+import pandas as pd
+from imblearn.over_sampling import SMOTE
+from sklearn.impute import SimpleImputer
+import mlflow
 
-# --- Set up MLflow Tracking ---
-# This logic checks for a tracking URI from the GitHub Actions environment variable first.
-# If it's not found, it falls back to your local server for development.
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
-mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+def preprocess_pulsar_data():
+    """
+    Loads raw pulsar data, cleans it, handles missing values, 
+    balances the classes using SMOTE, and logs the processed 
+    training data as an artifact in MLflow.
+    """
+    # --- 1. Set up MLflow Tracking ---
+    # This logic uses the environment variable in GitHub Actions, 
+    # but falls back to a local server for development.
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment("Pulsar Star - Data Pipeline")
 
-# --- The rest of your script remains exactly the same ---
-mlflow.set_experiment("pulsar-star-classifier")
+    with mlflow.start_run() as run:
+        run_id = run.info.run_id
+        print(f"Starting data preprocessing run with Run ID: {run_id}")
+        mlflow.set_tag("ml.step", "data_preprocessing")
 
-# อ่านข้อมูล Train
-train_df = pd.read_csv("data/processed/train_balanced.csv")
-X_train = train_df.drop("target_class", axis=1)
-y_train = train_df["target_class"]
+        # --- 2. Load Raw Data ---
+        RAW_DATA_PATH = "data/raw/pulsar_data_train.csv"
+        print(f"Loading data from {RAW_DATA_PATH}...")
+        df = pd.read_csv(RAW_DATA_PATH)
+        
+        # --- 3. Data Cleaning and Preparation ---
+        print("Cleaning and preparing data...")
+        # Clean column names
+        df.columns = [col.strip().replace(' ', '_') for col in df.columns]
+        
+        # Drop rows where the target is missing
+        initial_rows = len(df)
+        df.dropna(subset=['target_class'], inplace=True)
+        if initial_rows > len(df):
+            print(f"Dropped {initial_rows - len(df)} rows with missing target.")
 
-# เริ่มต้น MLflow run
-with mlflow.start_run():
-    # --- Parameters ---
-    n_estimators = 150
-    max_depth = 10
-    random_state = 42
-    
-    mlflow.log_param("n_estimators", n_estimators)
-    mlflow.log_param("max_depth", max_depth)
-    mlflow.log_param("random_state", random_state)
+        X = df.drop("target_class", axis=1)
+        y = df["target_class"]
 
-    # สร้าง Pipeline: StandardScaler -> RandomForestClassifier
-    pipeline = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', RandomForestClassifier(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            random_state=random_state
-        ))
-    ])
+        # Handle missing values in features (X)
+        if X.isnull().sum().sum() > 0:
+            imputer = SimpleImputer(strategy='mean')
+            X_imputed = imputer.fit_transform(X)
+            X = pd.DataFrame(X_imputed, columns=X.columns)
+        
+        # --- 4. Balance Data with SMOTE ---
+        print("Balancing data with SMOTE...")
+        rows_before_smote = len(X)
+        smote = SMOTE(random_state=42)
+        X_resampled, y_resampled = smote.fit_resample(X, y)
+        rows_after_smote = len(X_resampled)
+        
+        # --- 5. Save Processed Data Locally ---
+        processed_data_dir = "processed_data"
+        os.makedirs(processed_data_dir, exist_ok=True)
+        
+        balanced_df = pd.concat([X_resampled, y_resampled], axis=1)
+        balanced_df.to_csv(os.path.join(processed_data_dir, "train_balanced.csv"), index=False)
+        print(f"Saved balanced data to '{processed_data_dir}' directory.")
 
-    # Train โมเดล
-    print("Training model...")
-    pipeline.fit(X_train, y_train)
+        # --- 6. Log Parameters, Metrics, and Artifacts to MLflow ---
+        mlflow.log_param("smote_random_state", 42)
+        mlflow.log_metric("rows_before_smote", rows_before_smote)
+        mlflow.log_metric("rows_after_smote", rows_after_smote)
+        
+        mlflow.log_artifacts(processed_data_dir, artifact_path="processed_data")
+        print("Logged processed data directory as an artifact in MLflow.")
 
-    # ประเมินผลโมเดล (ใช้ข้อมูล Train เพื่อความง่าย)
-    y_pred = pipeline.predict(X_train)
-    
-    # --- Metrics ---
-    accuracy = accuracy_score(y_train, y_pred)
-    precision = precision_score(y_train, y_pred)
-    recall = recall_score(y_train, y_pred)
-    f1 = f1_score(y_train, y_pred)
-    
-    print(f"Accuracy: {accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1 Score: {f1:.4f}")
+        # --- 7. Output Run ID for CI/CD ---
+        print("-" * 50)
+        print(f"Data preprocessing complete. Use this Run ID for the training step:")
+        print(f"Preprocessing Run ID: {run_id}")
+        print("-" * 50)
 
-    mlflow.log_metric("accuracy", accuracy)
-    mlflow.log_metric("precision", precision)
-    mlflow.log_metric("recall", recall)
-    mlflow.log_metric("f1_score", f1)
-    
-    # --- Model ---
-    # Log the model (pipeline)
-    mlflow.sklearn.log_model(pipeline, "pulsar-classifier-model")
+        if "GITHUB_OUTPUT" in os.environ:
+            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                print(f"run_id={run_id}", file=f)
 
-    # Get the run_id of the current run
-    run_id = mlflow.active_run().info.run_id
-    print("\nModel training and logging complete.")
-    print(f"Run ID: {run_id}")
-
-    # --- GITHUB ACTIONS INTEGRATION --- #
-    # This block writes the run_id to a special file that GitHub Actions can read.
-    # It only runs when the script is executed within a GitHub Actions environment.
-    print("Checking for GITHUB_OUTPUT environment variable...")
-    if "GITHUB_OUTPUT" in os.environ:
-        print(f"Writing run_id {run_id} to GITHUB_OUTPUT...")
-        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            print(f"run_id={run_id}", file=f)
-        print("Successfully wrote run_id to GITHUB_OUTPUT.")
+if __name__ == "__main__":
+    preprocess_pulsar_data()
