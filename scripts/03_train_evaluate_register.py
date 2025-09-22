@@ -1,3 +1,12 @@
+import os
+import sys
+import pandas as pd
+import mlflow
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import f1_score
+
 def train_and_register():
     """
     Loads processed data from a previous MLflow run, trains a model
