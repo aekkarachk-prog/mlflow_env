@@ -1,58 +1,77 @@
-
-
-import mlflow
-import os
-import sys
-
-def register_model():
+def train_and_register():
     """
-    Registers the model from a specific run_id and promotes it
-    by giving it the 'champion' alias.
+    Loads processed data from a previous MLflow run, trains a model
+    in a new run, logs it, and then registers the new model.
     """
     # --- 1. Set up MLflow Tracking ---
-    # Reads the tracking URI from the environment variable in GitHub Actions
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
-    if MLFLOW_TRACKING_URI is None:
+    if not MLFLOW_TRACKING_URI:
         print("Error: MLFLOW_TRACKING_URI environment variable not set.")
         sys.exit(1)
-    
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    client = mlflow.tracking.MlflowClient()
 
-    # --- 2. Get Run ID from command-line arguments ---
+    # --- 2. Get Preprocessing Run ID from Arguments ---
     if len(sys.argv) < 2:
-        print("Error: Missing required argument: <run_id>")
-        print("Usage: python scripts/03_train_evaluate_register.py <run_id>")
+        print("Error: Missing required argument: <preprocessing_run_id>")
         sys.exit(1)
-        
-    run_id = sys.argv[1]
-    print(f"Received Run ID: {run_id}")
+    preprocessing_run_id = sys.argv[1]
+    print(f"Using preprocessing data from Run ID: {preprocessing_run_id}")
 
-    # --- 3. Register the Model ---
-    model_name = "pulsar-classifier-prod"
-    model_uri = f"runs:/{run_id}/pulsar-classifier-model"
-    
+    # --- 3. Load Data Artifact from the Preprocessing Run ---
     try:
+        data_path = f"runs:/{preprocessing_run_id}/processed_data/train_balanced.csv"
+        print(f"Loading data from artifact path: {data_path}")
+        train_df = pd.read_csv(data_path)
+        X_train = train_df.drop("target_class", axis=1)
+        y_train = train_df["target_class"]
+    except Exception as e:
+        print(f"Error loading data artifact: {e}")
+        sys.exit(1)
+
+    # --- 4. Start a NEW MLflow Run for Training ---
+    mlflow.set_experiment("Pulsar Star - Model Training")
+    with mlflow.start_run() as run:
+        training_run_id = run.info.run_id
+        print(f"Started new training run with Run ID: {training_run_id}")
+        mlflow.set_tag("ml.step", "model_training")
+        mlflow.set_tag("parent.run_id", preprocessing_run_id) # Link to parent run
+
+        # Log parameters
+        n_estimators = 150
+        max_depth = 10
+        mlflow.log_params({"n_estimators": n_estimators, "max_depth": max_depth})
+
+        # Create and train the model pipeline
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('classifier', RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=42))
+        ])
+        pipeline.fit(X_train, y_train)
+
+        # Evaluate and log metrics
+        y_pred = pipeline.predict(X_train)
+        f1 = f1_score(y_train, y_pred)
+        mlflow.log_metric("f1_score", f1)
+        print(f"Model F1 Score: {f1:.4f}")
+
+        # Log the model artifact
+        model_artifact_path = "pulsar-classifier-model"
+        mlflow.sklearn.log_model(pipeline, model_artifact_path)
+        print(f"Logged model artifact as '{model_artifact_path}'")
+
+        # --- 5. Register the Model from THIS Run ---
+        model_name = "pulsar-classifier-prod"
+        model_uri = f"runs:/{training_run_id}/{model_artifact_path}"
         print(f"Registering model '{model_name}' from URI: {model_uri}")
-        model_version = mlflow.register_model(
-            model_uri=model_uri,
-            name=model_name
-        )
+        
+        model_version = mlflow.register_model(model_uri=model_uri, name=model_name)
         print(f"Model registered successfully as Version: {model_version.version}")
 
-        # --- 4. Promote Model using Alias ---
-        # Set the 'champion' alias for the newly registered version
-        print(f"Setting 'champion' alias for model version {model_version.version}...")
-        client.set_registered_model_alias(
-            name=model_name,
-            alias="champion",
-            version=model_version.version
-        )
-        print("Successfully set 'champion' alias.")
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        sys.exit(1)
+        # --- 6. Output Training Run ID for CI/CD ---
+        if "GITHUB_OUTPUT" in os.environ:
+            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                print(f"run_id={training_run_id}", file=f)
+                print(f"model_version={model_version.version}", file=f)
 
 if __name__ == "__main__":
-    register_model()
+    train_and_register()
