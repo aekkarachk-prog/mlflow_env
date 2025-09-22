@@ -13,10 +13,7 @@ def train_and_register():
     in a new run, logs it, and then registers the new model.
     """
     # --- 1. Set up MLflow Tracking ---
-    # Use environment variable for CI/CD, but fall back to local server for development
-    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    print(f"Using MLflow Tracking URI: {MLFLOW_TRACKING_URI}")
+
 
 
     # --- 2. Get Preprocessing Run ID from Arguments ---
