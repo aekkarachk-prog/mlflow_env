@@ -1,19 +1,24 @@
+
+
 import mlflow
 import sys
+import os 
 from mlflow.tracking import MlflowClient
 
 def promote_model_alias(model_name, alias):
     """
     Sets an alias for the latest version of a registered model.
-    This replaces the deprecated "stage" functionality.
     """
-    # --- Connect to MLflow ---
-    MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
+    # --- Connect to MLflow using environment variables ---
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+    if MLFLOW_TRACKING_URI is None:
+        print("Error: MLFLOW_TRACKING_URI environment variable not set.")
+        sys.exit(1)
+        
     client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
 
     try:
         # --- Find the latest version ---
-        # Find all versions of the model and sort them to get the latest
         versions = client.search_model_versions(f"name='{model_name}'")
         if not versions:
             print(f"Error: No versions found for model '{model_name}'.")
@@ -24,7 +29,6 @@ def promote_model_alias(model_name, alias):
         print(f"Found latest model version: {version_number} for model '{model_name}'")
 
         # --- Set the new alias ---
-        # This is the modern replacement for transitioning stages
         print(f"Setting alias '{alias}' for model version {version_number}...")
         client.set_registered_model_alias(
             name=model_name,
@@ -38,8 +42,6 @@ def promote_model_alias(model_name, alias):
         sys.exit(1)
 
 if __name__ == "__main__":
-    # This block allows you to run the script from the command line
-    # with arguments, e.g., python <script_name> <model_name> <alias>
     if len(sys.argv) != 3:
         print("Usage: python scripts/04_transition_model.py <model_name> <alias>")
         print("Example: python scripts/04_transition_model.py pulsar-classifier-prod champion")

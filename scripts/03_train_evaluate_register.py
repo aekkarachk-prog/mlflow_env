@@ -1,48 +1,58 @@
-# scripts/03_register_model.py
+
+
 import mlflow
-from mlflow.tracking import MlflowClient
+import os
+import sys
 
-MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
-client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
-mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+def register_model():
+    """
+    Registers the model from a specific run_id and promotes it
+    by giving it the 'champion' alias.
+    """
+    # --- 1. Set up MLflow Tracking ---
+    # Reads the tracking URI from the environment variable in GitHub Actions
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+    if MLFLOW_TRACKING_URI is None:
+        print("Error: MLFLOW_TRACKING_URI environment variable not set.")
+        sys.exit(1)
+    
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    client = mlflow.tracking.MlflowClient()
 
-# ชื่อ Experiment และ Model ที่จะลงทะเบียน
-EXPERIMENT_NAME = "pulsar-star-classifier"
-REGISTERED_MODEL_NAME = "pulsar-classifier-prod"
+    # --- 2. Get Run ID from command-line arguments ---
+    if len(sys.argv) < 2:
+        print("Error: Missing required argument: <run_id>")
+        print("Usage: python scripts/03_train_evaluate_register.py <run_id>")
+        sys.exit(1)
+        
+    run_id = sys.argv[1]
+    print(f"Received Run ID: {run_id}")
 
-# ดึงข้อมูล Experiment
-experiment = client.get_experiment_by_name(EXPERIMENT_NAME)
-if not experiment:
-    raise RuntimeError(f"Experiment '{EXPERIMENT_NAME}' not found.")
+    # --- 3. Register the Model ---
+    model_name = "pulsar-classifier-prod"
+    model_uri = f"runs:/{run_id}/pulsar-classifier-model"
+    
+    try:
+        print(f"Registering model '{model_name}' from URI: {model_uri}")
+        model_version = mlflow.register_model(
+            model_uri=model_uri,
+            name=model_name
+        )
+        print(f"Model registered successfully as Version: {model_version.version}")
 
-# ค้นหา Run ที่ดีที่สุด (เรียงจาก f1_score สูงสุด)
-best_run = client.search_runs(
-    experiment_ids=experiment.experiment_id,
-    order_by=["metrics.f1_score DESC"],
-    max_results=1
-)[0]
+        # --- 4. Promote Model using Alias ---
+        # Set the 'champion' alias for the newly registered version
+        print(f"Setting 'champion' alias for model version {model_version.version}...")
+        client.set_registered_model_alias(
+            name=model_name,
+            alias="champion",
+            version=model_version.version
+        )
+        print("Successfully set 'champion' alias.")
 
-run_id = best_run.info.run_id
-model_uri = f"runs:/{run_id}/pulsar-classifier-model"
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
 
-print(f"Found best run with F1 Score: {best_run.data.metrics['f1_score']:.4f}")
-print(f"Run ID: {run_id}")
-print(f"Model URI: {model_uri}")
-
-# ลงทะเบียนโมเดล
-print(f"Registering model '{REGISTERED_MODEL_NAME}'...")
-model_version = mlflow.register_model(
-    model_uri=model_uri,
-    name=REGISTERED_MODEL_NAME
-)
-
-print(f"Model registered successfully as Version: {model_version.version}")
-
-# ย้ายโมเดลเวอร์ชันล่าสุดไปที่ Stage 'Staging'
-print("Transitioning model to 'Staging'...")
-client.transition_model_version_stage(
-    name=REGISTERED_MODEL_NAME,
-    version=model_version.version,
-    stage="Staging"
-)
-print("Transition complete.")
+if __name__ == "__main__":
+    register_model()
