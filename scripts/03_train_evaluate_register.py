@@ -1,3 +1,4 @@
+
 import os
 import sys
 import pandas as pd
@@ -12,21 +13,17 @@ def train_and_register():
     Loads processed data from a previous MLflow run, trains a model
     in a new run, logs it, and then registers the new model.
     """
-    # --- 1. Set up MLflow Tracking ---
-
-
-
-    # --- 2. Get Preprocessing Run ID from Arguments ---
+    # --- 1. Get Preprocessing Run ID from Arguments ---
     if len(sys.argv) < 2:
         print("Error: Missing required argument: <preprocessing_run_id>")
         sys.exit(1)
     preprocessing_run_id = sys.argv[1]
     print(f"Using preprocessing data from Run ID: {preprocessing_run_id}")
 
-
-    # --- 3. Load Data Artifact from the Preprocessing Run ---
+    # --- 2. Load Data Artifact from the Preprocessing Run ---
     try:
-        data_path = f"runs:/{preprocessing_run_id}/data/processed_data/train_balanced.csv"
+        # Corrected the artifact path to remove the extra '/data'
+        data_path = f"runs:/{preprocessing_run_id}/processed_data/train_balanced.csv"
         print(f"Loading data from artifact path: {data_path}")
         train_df = pd.read_csv(data_path)
         X_train = train_df.drop("target_class", axis=1)
@@ -35,14 +32,13 @@ def train_and_register():
         print(f"Error loading data artifact: {e}")
         sys.exit(1)
 
-
-    # --- 4. Start a NEW MLflow Run for Training ---
+    # --- 3. Start a NEW MLflow Run for Training ---
     mlflow.set_experiment("Pulsar Star - Model Training")
     with mlflow.start_run() as run:
         training_run_id = run.info.run_id
         print(f"Started new training run with Run ID: {training_run_id}")
         mlflow.set_tag("ml.step", "model_training")
-        mlflow.set_tag("parent.run_id", preprocessing_run_id) # Link to parent run
+        mlflow.set_tag("parent.run_id", preprocessing_run_id)
 
         # Log parameters
         n_estimators = 150
@@ -67,8 +63,7 @@ def train_and_register():
         mlflow.sklearn.log_model(pipeline, model_artifact_path)
         print(f"Logged model artifact as '{model_artifact_path}'")
 
-
-        # --- 5. Register the Model from THIS Run ---
+        # --- 4. Register the Model from THIS Run ---
         model_name = "pulsar-classifier-prod"
         model_uri = f"runs:/{training_run_id}/{model_artifact_path}"
         print(f"Registering model '{model_name}' from URI: {model_uri}")
@@ -76,8 +71,7 @@ def train_and_register():
         model_version = mlflow.register_model(model_uri=model_uri, name=model_name)
         print(f"Model registered successfully as Version: {model_version.version}")
 
-
-        # --- 6. Output Training Run ID for CI/CD ---
+        # --- 5. Output Training Run ID for CI/CD ---
         if "GITHUB_OUTPUT" in os.environ:
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                 print(f"run_id={training_run_id}", file=f)
