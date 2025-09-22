@@ -12,12 +12,12 @@ def train_and_register():
     Loads processed data from a previous MLflow run, trains a model
     in a new run, logs it, and then registers the new model.
     """
-    # --- 1. Set up MLflow Tracking --
-    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
-    if not MLFLOW_TRACKING_URI:
-        print("Error: MLFLOW_TRACKING_URI environment variable not set.")
-        sys.exit(1)
+    # --- 1. Set up MLflow Tracking ---
+    # Use environment variable for CI/CD, but fall back to local server for development
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    print(f"Using MLflow Tracking URI: {MLFLOW_TRACKING_URI}")
+
 
     # --- 2. Get Preprocessing Run ID from Arguments ---
     if len(sys.argv) < 2:
@@ -25,6 +25,7 @@ def train_and_register():
         sys.exit(1)
     preprocessing_run_id = sys.argv[1]
     print(f"Using preprocessing data from Run ID: {preprocessing_run_id}")
+
 
     # --- 3. Load Data Artifact from the Preprocessing Run ---
     try:
@@ -36,6 +37,7 @@ def train_and_register():
     except Exception as e:
         print(f"Error loading data artifact: {e}")
         sys.exit(1)
+
 
     # --- 4. Start a NEW MLflow Run for Training ---
     mlflow.set_experiment("Pulsar Star - Model Training")
@@ -68,6 +70,7 @@ def train_and_register():
         mlflow.sklearn.log_model(pipeline, model_artifact_path)
         print(f"Logged model artifact as '{model_artifact_path}'")
 
+
         # --- 5. Register the Model from THIS Run ---
         model_name = "pulsar-classifier-prod"
         model_uri = f"runs:/{training_run_id}/{model_artifact_path}"
@@ -75,6 +78,7 @@ def train_and_register():
         
         model_version = mlflow.register_model(model_uri=model_uri, name=model_name)
         print(f"Model registered successfully as Version: {model_version.version}")
+
 
         # --- 6. Output Training Run ID for CI/CD ---
         if "GITHUB_OUTPUT" in os.environ:
