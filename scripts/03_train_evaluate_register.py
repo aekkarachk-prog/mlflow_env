@@ -1,3 +1,4 @@
+# scripts/03_train_evaluate_register.py
 
 import os
 import sys
