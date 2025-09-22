@@ -7,9 +7,13 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import mlflow
 import os
 
-# ตั้งค่า MLflow Experiment
-MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
+# --- Set up MLflow Tracking ---
+# This logic checks for a tracking URI from the GitHub Actions environment variable first.
+# If it's not found, it falls back to your local server for development.
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
+# --- The rest of your script remains exactly the same ---
 mlflow.set_experiment("pulsar-star-classifier")
 
 # อ่านข้อมูล Train
